@@ -174,13 +174,16 @@ public class EnumRule implements Rule<JClassContainer, JType> {
     }
 
     private void addFactoryMethod(JDefinedClass _enum, JType backingType) {
+
+        boolean useNameFallback = true;
+
         JFieldVar quickLookupMap = addQuickLookupMap(_enum, backingType);
 
         JMethod fromValue = _enum.method(JMod.PUBLIC | JMod.STATIC, _enum, "fromValue");
         JVar valueParam = fromValue.param(backingType, "value");
 
         JBlock body = fromValue.body();
-        JVar constant = body.decl(_enum, "constant");
+        JVar constant = body.decl(_enum, "constantValue");
         constant.init(quickLookupMap.invoke("get").arg(valueParam));
 
         JConditional _if = body._if(constant.eq(JExpr._null()));
@@ -194,7 +197,22 @@ public class EnumRule implements Rule<JClassContainer, JType> {
         }
 
         illegalArgumentException.arg(expr);
-        _if._then()._throw(illegalArgumentException);
+
+        if(useNameFallback) {
+            JFieldVar quickNameLookupMap = addQuickNameLookupMap(_enum, backingType);
+
+            JBlock constantValueNullBlock = _if._then().block();
+
+            JVar nameValue = constantValueNullBlock.decl(_enum, "nameValue");
+            nameValue.init(quickNameLookupMap.invoke("get").arg(valueParam));
+
+            JConditional name_if = constantValueNullBlock._if(nameValue.eq(JExpr._null()));
+            name_if._then()._throw(illegalArgumentException);
+            name_if._else()._return(nameValue);
+        } else {
+            _if._then()._throw(illegalArgumentException);
+        }
+
         _if._else()._return(constant);
 
         ruleFactory.getAnnotator().enumCreatorMethod(_enum, fromValue);
@@ -204,16 +222,32 @@ public class EnumRule implements Rule<JClassContainer, JType> {
 
         JClass lookupType = _enum.owner().ref(Map.class).narrow(backingType.boxify(), _enum);
         JFieldVar lookupMap = _enum.field(JMod.PRIVATE | JMod.STATIC | JMod.FINAL, lookupType, "CONSTANTS");
-
         JClass lookupImplType = _enum.owner().ref(HashMap.class).narrow(backingType.boxify(), _enum);
         lookupMap.init(JExpr._new(lookupImplType));
 
         JForEach forEach = _enum.init().forEach(_enum, "c", JExpr.invoke("values"));
+
         JInvocation put = forEach.body().invoke(lookupMap, "put");
         put.arg(forEach.var().ref("value"));
         put.arg(forEach.var());
 
         return lookupMap;
+    }
+
+    private JFieldVar addQuickNameLookupMap(JDefinedClass _enum, JType backingType) {
+
+        JClass nameLookupType = _enum.owner().ref(Map.class).narrow(backingType.boxify(), _enum);
+        JFieldVar nameLookupMap = _enum.field(JMod.PRIVATE | JMod.STATIC | JMod.FINAL, nameLookupType, "NAMES");
+        JClass nameLookupImplType = _enum.owner().ref(HashMap.class).narrow(backingType.boxify(), _enum);
+        nameLookupMap.init(JExpr._new(nameLookupImplType));
+
+        JForEach forEach = _enum.init().forEach(_enum, "c", JExpr.invoke("values"));
+
+        JInvocation put = forEach.body().invoke(nameLookupMap, "put");
+        put.arg(forEach.var().invoke("name"));
+        put.arg(forEach.var());
+
+        return nameLookupMap;
     }
 
     private JFieldVar addValueField(JDefinedClass _enum, JType type) {
