@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.jsonschema2pojo.Annotator;
+import org.jsonschema2pojo.RuleLogger;
 import org.jsonschema2pojo.Schema;
 import org.jsonschema2pojo.exception.ClassAlreadyExistsException;
 import org.jsonschema2pojo.exception.GenerationException;
@@ -157,12 +158,13 @@ public class EnumRule implements Rule<JClassContainer, JType> {
       JsonNode javaEnumNames = node.path("javaEnumNames");
       JsonNode javaEnums = node.path("javaEnums");
 
+      RuleLogger logger = ruleFactory.getLogger();
       if(!javaEnums.isMissingNode() && !javaEnumNames.isMissingNode()) {
-        System.err.println("Both javaEnums and javaEnumNames provided; the property javaEnumNames will be ignored when both javaEnums and javaEnumNames are provided.");
+        logger.warn("Both javaEnums and javaEnumNames provided; the property javaEnumNames will be ignored when both javaEnums and javaEnumNames are provided.");
       }
 
       if(!javaEnumNames.isMissingNode()) {
-        System.err.println("javaEnumNames is deprecated; please migrate to javaEnums.");
+          logger.warn("javaEnumNames is deprecated; please migrate to javaEnums.");
       }
 
       EnumDefinition enumDefinition;
@@ -224,6 +226,8 @@ public class EnumRule implements Rule<JClassContainer, JType> {
 
         Collection<String> existingConstantNames = new ArrayList<>();
 
+        RuleLogger logger = ruleFactory.getLogger();
+
         for (int i = 0; i < enums.size(); i++) {
             JsonNode value = enums.path(i);
 
@@ -231,7 +235,7 @@ public class EnumRule implements Rule<JClassContainer, JType> {
                 JsonNode javaEnumNode = javaEnums.path(i);
 
                 if(javaEnumNode.isMissingNode()) {
-                    System.err.println("javaEnum entry for " + value.asText() + " was not found.");
+                    logger.warn("javaEnum entry for " + value.asText() + " was not found.");
                 }
 
                 String constantName = getConstantName(value.asText(), javaEnumNode.path("name").asText());
@@ -411,7 +415,7 @@ public class EnumRule implements Rule<JClassContainer, JType> {
 
         if (found) {
             String newName = makeUnique(name + "_", existingNames);
-            System.err.println("Enum name " + name + " already used; trying to replace it with " + newName);
+            ruleFactory.getLogger().warn("Enum name " + name + " already used; trying to replace it with " + newName);
             return newName;
         }
 
