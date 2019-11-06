@@ -15,4 +15,6 @@
 @REM
 
 @echo off
-java -jar "%~dp0/../lib/${project.build.finalName}.jar" %*
+
+java -jar "%~dp0\${project.build.finalName}.jar" %*
+
